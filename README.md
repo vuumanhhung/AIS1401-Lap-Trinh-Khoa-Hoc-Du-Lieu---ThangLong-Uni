@@ -13,6 +13,7 @@
 5. [Pandas](#5-pandas)
 6. [Matplotlib](#6-matplotlib)
 7. [Cheat sheet nhanh](#7-cheat-sheet-nhanh)
+8. [Bài mẫu Pandas áp dụng (32 ví dụ)](#8-bài-mẫu-pandas-áp-dụng)
 
 ---
 
@@ -980,4 +981,597 @@ plt.show()
   → Biến đổi (cột mới, apply/map, groupby, pivot_table, merge)
   → Trực quan hóa (df.plot / matplotlib)
   → Lưu kết quả (to_csv, savefig)
+```
+
+---
+
+## 8. Bài mẫu Pandas áp dụng
+
+> Tất cả ví dụ dưới đây chạy trên 3 bảng `san_pham`, `don_hang`, `kho` (code khai báo ở cuối mục này). Output đã chạy thật, chạy **tuần tự từ trên xuống** (một số ví dụ thêm cột mới vào bảng, vd `xep_hang`, `thang`). Với `don_hang`, cột `ngay` đã được đổi sang datetime bằng `pd.to_datetime`.
+
+
+### A. Chọn & lọc dữ liệu
+
+**1. Lọc đơn hoàn tất qua kênh Web**
+
+```python
+print(don_hang[(don_hang['trang_thai']=='Hoàn tất') & (don_hang['kenh']=='Web')][['ma_dh','ma_sp','so_luong']])
+```
+
+Kết quả:
+```
+   ma_dh ma_sp  so_luong
+0   DH01  SP01         2
+4   DH05  SP04         2
+5   DH06  SP05         5
+7   DH08  SP06         2
+11  DH12  SP04         1
+13  DH14  SP05         3
+```
+
+**2. Lọc bằng `query` + `@biến`**
+
+```python
+min_sl = 3
+print(don_hang.query('so_luong >= @min_sl and trang_thai != "Hủy"')[['ma_dh','so_luong','trang_thai']])
+```
+
+Kết quả:
+```
+   ma_dh  so_luong trang_thai
+5   DH06         5   Hoàn tất
+13  DH14         3   Hoàn tất
+```
+
+**3. Lọc theo tập giá trị bằng `isin`**
+
+```python
+print(san_pham[san_pham['ncc'].isin(['NCC1','NCC3'])][['ma_sp','ten_sp','ncc']])
+```
+
+Kết quả:
+```
+  ma_sp    ten_sp   ncc
+0  SP01   Áo thun  NCC1
+2  SP03      Giày  NCC3
+3  SP04  Túi xách  NCC1
+5  SP06        Ví  NCC3
+6  SP07  Dây lưng  NCC1
+```
+
+**4. Lọc theo thời gian (đơn quý 2: tháng 4–6)**
+
+```python
+print(don_hang[don_hang['ngay'].dt.month.between(4,6)][['ma_dh','ngay']])
+```
+
+Kết quả:
+```
+   ma_dh       ngay
+7   DH08 2024-04-02
+8   DH09 2024-04-15
+9   DH10 2024-04-25
+10  DH11 2024-05-05
+11  DH12 2024-05-20
+12  DH13 2024-06-01
+13  DH14 2024-06-15
+14  DH15 2024-06-25
+```
+
+**5. `loc` / `iloc` / `at`**
+
+```python
+print(san_pham.loc[san_pham['gia']>300_000, ['ten_sp','gia']])
+print(san_pham.iloc[0:2, 1:3])
+print(san_pham.at[2,'ten_sp'])
+```
+
+Kết quả:
+```
+      ten_sp     gia
+1  Quần jean  500000
+2       Giày  800000
+3   Túi xách  350000
+      ten_sp danh_muc
+0    Áo thun       Áo
+1  Quần jean     Quần
+Giày
+```
+
+
+### B. Sắp xếp, top-N, xếp hạng
+
+**6. Top 2 tồn kho nhiều nhất (`nlargest`)**
+
+```python
+print(kho.nlargest(2,'so_luong_ton'))
+```
+
+Kết quả:
+```
+  ma_sp  so_luong_ton vi_tri   ngay_nhap
+6  SP07           300     C1  2024-01-07
+4  SP05           200     B2  2024-01-05
+```
+
+**7. 3 sản phẩm tồn ít nhất (`nsmallest`)**
+
+```python
+print(kho.nsmallest(3,'so_luong_ton')[['ma_sp','so_luong_ton']])
+```
+
+Kết quả:
+```
+  ma_sp  so_luong_ton
+2  SP03            20
+1  SP02            50
+7  SP08            60
+```
+
+**8. Xếp hạng theo giá, hạng 1 = đắt nhất (`rank`)**
+
+```python
+san_pham['xep_hang'] = san_pham['gia'].rank(method='dense', ascending=False).astype(int)
+print(san_pham.sort_values('xep_hang')[['ten_sp','gia','xep_hang']])
+```
+
+Kết quả:
+```
+      ten_sp     gia  xep_hang
+2       Giày  800000         1
+1  Quần jean  500000         2
+3   Túi xách  350000         3
+5         Ví  250000         4
+0    Áo thun  200000         5
+4         Mũ  150000         6
+6   Dây lưng  120000         7
+```
+
+**9. Khác nhau giữa các `method` của `rank`**
+
+```python
+s = pd.Series([10,20,20,30])
+print(pd.DataFrame({'gia_tri':s,'dense':s.rank(method='dense',ascending=False),'min':s.rank(method='min',ascending=False),'first':s.rank(method='first',ascending=False),'average':s.rank(ascending=False)}))
+```
+
+Kết quả:
+```
+   gia_tri  dense  min  first  average
+0       10    3.0  4.0    4.0      4.0
+1       20    2.0  2.0    2.0      2.5
+2       20    2.0  2.0    3.0      2.5
+3       30    1.0  1.0    1.0      1.0
+```
+
+**10. Xếp hạng trong từng nhóm (`groupby` + `rank`)**
+
+```python
+san_pham['hang_trong_dm'] = san_pham.groupby('danh_muc')['gia'].rank(method='dense', ascending=False).astype(int)
+print(san_pham[['ten_sp','danh_muc','gia','hang_trong_dm']].sort_values(['danh_muc','hang_trong_dm']))
+```
+
+Kết quả:
+```
+      ten_sp  danh_muc     gia  hang_trong_dm
+2       Giày      Giày  800000              1
+3   Túi xách  Phụ kiện  350000              1
+5         Ví  Phụ kiện  250000              2
+4         Mũ  Phụ kiện  150000              3
+6   Dây lưng  Phụ kiện  120000              4
+1  Quần jean      Quần  500000              1
+0    Áo thun        Áo  200000              1
+```
+
+**11. Sắp xếp nhiều cột: `trang_thai` tăng, `ngay` giảm**
+
+```python
+print(don_hang.sort_values(['trang_thai','ngay'], ascending=[True,False])[['ma_dh','trang_thai','ngay']].head(6))
+```
+
+Kết quả:
+```
+   ma_dh trang_thai       ngay
+14  DH15   Hoàn tất 2024-06-25
+13  DH14   Hoàn tất 2024-06-15
+11  DH12   Hoàn tất 2024-05-20
+10  DH11   Hoàn tất 2024-05-05
+8   DH09   Hoàn tất 2024-04-15
+7   DH08   Hoàn tất 2024-04-02
+```
+
+
+### C. Cột mới & biến đổi
+
+**12. Cột tính toán (vector hóa)**
+
+```python
+dh = don_hang.merge(san_pham[['ma_sp','ten_sp','gia']], on='ma_sp')
+dh['doanh_thu'] = dh['so_luong'] * dh['gia']
+print(dh[['ma_dh','ten_sp','so_luong','gia','doanh_thu']].head())
+```
+
+Kết quả:
+```
+  ma_dh     ten_sp  so_luong     gia  doanh_thu
+0  DH01    Áo thun         2  200000     400000
+1  DH02  Quần jean         1  500000     500000
+2  DH03    Áo thun         3  200000     600000
+3  DH04       Giày         1  800000     800000
+4  DH05   Túi xách         2  350000     700000
+```
+
+**13. `map` với lambda / dict**
+
+```python
+san_pham['phan_khuc'] = san_pham['gia'].map(lambda x: 'Cao cấp' if x>=500_000 else ('Trung bình' if x>=200_000 else 'Bình dân'))
+print(san_pham[['ten_sp','gia','phan_khuc']])
+print(don_hang['kenh'].map({'Web':1,'App':0}).head())
+```
+
+Kết quả:
+```
+      ten_sp     gia   phan_khuc
+0    Áo thun  200000  Trung bình
+1  Quần jean  500000     Cao cấp
+2       Giày  800000     Cao cấp
+3   Túi xách  350000  Trung bình
+4         Mũ  150000    Bình dân
+5         Ví  250000  Trung bình
+6   Dây lưng  120000    Bình dân
+0    1
+1    0
+2    1
+3    0
+4    1
+Name: kenh, dtype: int64
+```
+
+**14. `apply` theo dòng**
+
+```python
+print(san_pham.apply(lambda r: f"{r['ten_sp']} - {r['gia']:,}đ", axis=1).head(3))
+```
+
+Kết quả:
+```
+0      Áo thun - 200,000đ
+1    Quần jean - 500,000đ
+2         Giày - 800,000đ
+dtype: str
+```
+
+**15. Tách tháng/thứ từ ngày (`.dt`)**
+
+```python
+don_hang['thang'] = don_hang['ngay'].dt.month
+don_hang['thu'] = don_hang['ngay'].dt.day_name()
+print(don_hang[['ma_dh','ngay','thang','thu']].head(4))
+```
+
+Kết quả:
+```
+  ma_dh       ngay  thang       thu
+0  DH01 2024-01-05      1    Friday
+1  DH02 2024-01-15      1    Monday
+2  DH03 2024-02-10      2  Saturday
+3  DH04 2024-02-20      2   Tuesday
+```
+
+**16. `where` / `mask`**
+
+```python
+print(kho['so_luong_ton'].where(kho['so_luong_ton']>=60, 0).tolist())
+print(kho['so_luong_ton'].mask(kho['so_luong_ton']>=200, 200).tolist())
+```
+
+Kết quả:
+```
+[100, 0, 0, 80, 200, 120, 300, 60]
+[100, 50, 20, 80, 200, 120, 200, 60]
+```
+
+
+### D. Gộp bảng (merge / concat)
+
+**17. `inner`: chỉ giữ SP có ở cả 2 bảng**
+
+```python
+r = san_pham.merge(kho, on='ma_sp', how='inner')
+print(len(r)); print(r[['ma_sp','ten_sp','so_luong_ton']].head(3))
+```
+
+Kết quả:
+```
+7
+  ma_sp     ten_sp  so_luong_ton
+0  SP01    Áo thun           100
+1  SP02  Quần jean            50
+2  SP03       Giày            20
+```
+
+**18. `left`: giữ hết `kho` (SP08 không có tên → NaN)**
+
+```python
+r = kho.merge(san_pham[['ma_sp','ten_sp']], on='ma_sp', how='left')
+print(r[['ma_sp','ten_sp','so_luong_ton']].tail(3))
+```
+
+Kết quả:
+```
+  ma_sp    ten_sp  so_luong_ton
+5  SP06        Ví           120
+6  SP07  Dây lưng           300
+7  SP08       NaN            60
+```
+
+**19. `outer` + `indicator` để biết dòng nào chỉ có ở 1 bên**
+
+```python
+r = san_pham[['ma_sp']].merge(kho[['ma_sp']], on='ma_sp', how='outer', indicator=True)
+print(r[r['_merge']!='both'])
+```
+
+Kết quả:
+```
+  ma_sp      _merge
+7  SP08  right_only
+```
+
+**20. Nối 3 bảng: đơn hàng + sản phẩm + kho**
+
+```python
+full = (don_hang.merge(san_pham, on='ma_sp', how='left').merge(kho[['ma_sp','so_luong_ton']], on='ma_sp', how='left'))
+print(full[['ma_dh','ten_sp','so_luong','so_luong_ton']].head(3))
+```
+
+Kết quả:
+```
+  ma_dh     ten_sp  so_luong  so_luong_ton
+0  DH01    Áo thun         2           100
+1  DH02  Quần jean         1            50
+2  DH03    Áo thun         3           100
+```
+
+
+### E. Gom nhóm & thống kê
+
+**21. Tổng số lượng bán theo sản phẩm**
+
+```python
+print(don_hang.groupby('ma_sp')['so_luong'].sum())
+```
+
+Kết quả:
+```
+ma_sp
+SP01    7
+SP02    4
+SP03    2
+SP04    3
+SP05    8
+SP06    3
+SP07    4
+Name: so_luong, dtype: int64
+```
+
+**22. Doanh thu theo danh mục (chỉ đơn Hoàn tất)**
+
+```python
+dh = don_hang[don_hang['trang_thai']=='Hoàn tất'].merge(san_pham, on='ma_sp')
+dh['doanh_thu'] = dh['so_luong']*dh['gia']
+print(dh.groupby('danh_muc')['doanh_thu'].sum().sort_values(ascending=False))
+```
+
+Kết quả:
+```
+danh_muc
+Phụ kiện    3000000
+Giày        1600000
+Áo           800000
+Quần         500000
+Name: doanh_thu, dtype: int64
+```
+
+**23. `agg` nhiều hàm cùng lúc**
+
+```python
+print(don_hang.groupby('kenh').agg(so_don=('ma_dh','count'), tong_sl=('so_luong','sum'), sl_tb=('so_luong','mean')))
+```
+
+Kết quả:
+```
+      so_don  tong_sl     sl_tb
+kenh                           
+App        7        9  1.285714
+Web        8       22  2.750000
+```
+
+**24. `value_counts` đếm trạng thái**
+
+```python
+print(don_hang['trang_thai'].value_counts())
+print(don_hang['trang_thai'].value_counts(normalize=True).round(2))
+```
+
+Kết quả:
+```
+trang_thai
+Hoàn tất     11
+Hủy           2
+Đang giao     2
+Name: count, dtype: int64
+trang_thai
+Hoàn tất     0.73
+Hủy          0.13
+Đang giao    0.13
+Name: proportion, dtype: float64
+```
+
+**25. Doanh thu theo tháng**
+
+```python
+dh = don_hang.merge(san_pham, on='ma_sp')
+dh['doanh_thu']=dh['so_luong']*dh['gia']
+print(dh.groupby(dh['ngay'].dt.to_period('M'))['doanh_thu'].sum())
+```
+
+Kết quả:
+```
+ngay
+2024-01     900000
+2024-02    1400000
+2024-03    1950000
+2024-04    1780000
+2024-05     750000
+2024-06    1700000
+Freq: M, Name: doanh_thu, dtype: int64
+```
+
+**26. `transform`: % số lượng của mỗi đơn trong tổng SP đó**
+
+```python
+don_hang['ty_le_sp'] = (don_hang['so_luong'] / don_hang.groupby('ma_sp')['so_luong'].transform('sum')).round(2)
+print(don_hang[['ma_dh','ma_sp','so_luong','ty_le_sp']].head(5))
+```
+
+Kết quả:
+```
+  ma_dh ma_sp  so_luong  ty_le_sp
+0  DH01  SP01         2      0.29
+1  DH02  SP02         1      0.25
+2  DH03  SP01         3      0.43
+3  DH04  SP03         1      0.50
+4  DH05  SP04         2      0.67
+```
+
+**27. `idxmax`: sản phẩm bán chạy nhất**
+
+```python
+s = don_hang.groupby('ma_sp')['so_luong'].sum()
+print(s.idxmax(), s.max())
+```
+
+Kết quả:
+```
+SP05 8
+```
+
+
+### F. Bảng tổng hợp
+
+**28. `pivot_table`: số lượng theo sản phẩm × kênh**
+
+```python
+print(don_hang.pivot_table(index='ma_sp', columns='kenh', values='so_luong', aggfunc='sum', fill_value=0))
+```
+
+Kết quả:
+```
+kenh   App  Web
+ma_sp          
+SP01     2    5
+SP02     4    0
+SP03     2    0
+SP04     0    3
+SP05     0    8
+SP06     1    2
+SP07     0    4
+```
+
+**29. `pivot_table` + tổng (`margins`)**
+
+```python
+print(don_hang.pivot_table(index='trang_thai', columns='kenh', values='so_luong', aggfunc='sum', fill_value=0, margins=True))
+```
+
+Kết quả:
+```
+kenh        App  Web  All
+trang_thai               
+Hoàn tất      6   15   21
+Hủy           0    7    7
+Đang giao     3    0    3
+All           9   22   31
+```
+
+**30. `crosstab`: đếm đơn theo trạng thái × kênh**
+
+```python
+print(pd.crosstab(don_hang['trang_thai'], don_hang['kenh']))
+```
+
+Kết quả:
+```
+kenh        App  Web
+trang_thai          
+Hoàn tất      5    6
+Hủy           0    2
+Đang giao     2    0
+```
+
+
+### G. Dữ liệu thiếu & trùng
+
+**31. Tạo NaN rồi xử lý**
+
+```python
+d = kho.merge(san_pham[['ma_sp','ten_sp']], on='ma_sp', how='left')
+print(d.isna().sum())
+print(d.fillna({'ten_sp':'(chưa có)'})[['ma_sp','ten_sp']].tail(2))
+print(len(d.dropna(subset=['ten_sp'])))
+```
+
+Kết quả:
+```
+ma_sp           0
+so_luong_ton    0
+vi_tri          0
+ngay_nhap       0
+ten_sp          1
+dtype: int64
+  ma_sp     ten_sp
+6  SP07   Dây lưng
+7  SP08  (chưa có)
+7
+```
+
+**32. Trùng lặp**
+
+```python
+x = pd.concat([don_hang[['ma_sp','kenh']], don_hang[['ma_sp','kenh']].head(2)])
+print(x.duplicated().sum())
+print(len(x.drop_duplicates()))
+```
+
+Kết quả:
+```
+8
+9
+```
+
+
+### Dữ liệu mẫu (khai báo)
+
+```python
+import pandas as pd, numpy as np
+san_pham = pd.DataFrame({
+ 'ma_sp': ['SP01','SP02','SP03','SP04','SP05','SP06','SP07'],
+ 'ten_sp': ['Áo thun','Quần jean','Giày','Túi xách','Mũ','Ví','Dây lưng'],
+ 'danh_muc': ['Áo','Quần','Giày','Phụ kiện','Phụ kiện','Phụ kiện','Phụ kiện'],
+ 'gia': [200_000,500_000,800_000,350_000,150_000,250_000,120_000],
+ 'ncc': ['NCC1','NCC2','NCC3','NCC1','NCC2','NCC3','NCC1']})
+don_hang = pd.DataFrame({
+ 'ma_dh': ['DH%02d'%i for i in range(1,16)],
+ 'ma_sp': ['SP01','SP02','SP01','SP03','SP04','SP05','SP02','SP06','SP03','SP07','SP01','SP04','SP02','SP05','SP06'],
+ 'so_luong':[2,1,3,1,2,5,1,2,1,4,2,1,2,3,1],
+ 'ngay': ['2024-01-05','2024-01-15','2024-02-10','2024-02-20','2024-03-05','2024-03-15','2024-03-25','2024-04-02','2024-04-15','2024-04-25','2024-05-05','2024-05-20','2024-06-01','2024-06-15','2024-06-25'],
+ 'trang_thai':['Hoàn tất','Hoàn tất','Hủy','Hoàn tất','Hoàn tất','Hoàn tất','Đang giao','Hoàn tất','Hoàn tất','Hủy','Hoàn tất','Hoàn tất','Đang giao','Hoàn tất','Hoàn tất'],
+ 'kenh': ['Web','App','Web','App','Web','Web','App','Web','App','Web','App','Web','App','Web','App']})
+kho = pd.DataFrame({
+ 'ma_sp': ['SP01','SP02','SP03','SP04','SP05','SP06','SP07','SP08'],
+ 'so_luong_ton':[100,50,20,80,200,120,300,60],
+ 'vi_tri': ['A1','A2','A3','B1','B2','B3','C1','C2'],
+ 'ngay_nhap': ['2024-01-01','2024-01-02','2024-01-03','2024-01-04','2024-01-05','2024-01-06','2024-01-07','2024-01-08']})
+# chuyển cột ngày sang datetime
+don_hang['ngay'] = pd.to_datetime(don_hang['ngay'])
 ```
